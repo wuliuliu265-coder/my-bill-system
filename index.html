@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>个人云记账系统 - 支付方式增强版</title>
+<title>个人云记账系统 - 支付汇总增强版</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 /* 严格遵循原始视觉规范 */
@@ -77,19 +77,25 @@ body { margin:0; padding:0; font-family:"Segoe UI","PingFang SC",sans-serif; bac
 .record{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin-bottom:12px;cursor:pointer;}
 .budget-item{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:14px;}
 .total-budget-card{background:var(--primary-soft);border:1px solid #c7d2fe;border-radius:16px;padding:16px;margin-bottom:16px;}
+
+/* 支付汇总卡片样式 */
+.account-summary-card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:20px; }
+.acc-row { display:flex; justify-content:space-between; margin-bottom:8px; font-size:14px; }
+.acc-name { color: var(--muted); }
+.acc-amount { font-weight: 700; }
+
 .charts{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:22px;}
 .chart-wrap{height:300px;width:100%;position:relative;}
 
 /* 支付方式小标签样式 */
 .acc-tag { background:var(--line); color:var(--muted); padding:2px 6px; border-radius:4px; font-size:11px; margin-left:4px; }
 
-/* === 新增：流水记录固定高度滚动优化 === */
+/* 流水记录固定高度滚动 */
 #recordList {
-    max-height: 480px; /* 设置最大高度，防止页面无限延伸 */
-    overflow-y: auto;  /* 开启垂直滚动 */
-    padding-right: 4px; /* 为滚动条留出间隙 */
+    max-height: 480px; 
+    overflow-y: auto;  
+    padding-right: 4px; 
 }
-/* 自定义现代滚动条样式 */
 #recordList::-webkit-scrollbar { width: 4px; }
 #recordList::-webkit-scrollbar-thumb { background: var(--line); border-radius: 10px; }
 #recordList::-webkit-scrollbar-track { background: transparent; }
@@ -162,6 +168,10 @@ body { margin:0; padding:0; font-family:"Segoe UI","PingFang SC",sans-serif; bac
     </main>
 
     <aside class="panel">
+      <h3>账户汇总 (本月)</h3>
+      <div class="account-summary-card" id="accountSummaryBox">
+        </div>
+
       <h3>分类预算</h3>
       <div class="total-budget-card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -170,6 +180,7 @@ body { margin:0; padding:0; font-family:"Segoe UI","PingFang SC",sans-serif; bac
         </div>
         <div id="remainingAllocInfo" style="font-size:11px; color:var(--muted);">剩余可分配：¥0.00</div>
       </div>
+      
       <div id="budgetList"></div>
       <div style="margin-top:10px; color:var(--primary); cursor:pointer; font-weight:700; padding:10px; text-align:center; border:2px dashed var(--primary-soft); border-radius:14px;" id="addCategoryBtn">+ 添加新分类</div>
     </aside>
@@ -182,7 +193,6 @@ body { margin:0; padding:0; font-family:"Segoe UI","PingFang SC",sans-serif; bac
 </div>
 
 <script>
-// 所有 JS 逻辑完全保留自 123.html
 let CLOUD = { KEY: localStorage.getItem('MY_BILL_KEY'), BIN: localStorage.getItem('MY_BILL_BIN') };
 let records = [], budgets = {}, categories = ['餐饮', '交通', '购物', '娱乐', '住房', '医疗', '工资', '红包', '其他'];
 let totalMonthlyBudget = 0;
@@ -232,7 +242,7 @@ function renderAll() {
     if (isNaN(currentDate.getTime())) currentDate = new Date();
     document.getElementById('currentMonthLabel').textContent = `${currentDate.getFullYear()}年${currentDate.getMonth()+1}月`;
     document.getElementById('totalMonthlyBudget').value = totalMonthlyBudget || '';
-    renderSummary(); renderCategoryButtons(); renderFilterTags(); renderCalendar(); renderRecords(); renderBudgets(); renderCharts();
+    renderSummary(); renderCategoryButtons(); renderFilterTags(); renderCalendar(); renderRecords(); renderBudgets(); renderCharts(); renderAccountSummary();
 }
 
 function renderSummary() {
@@ -241,11 +251,38 @@ function renderSummary() {
     const inc = mRecords.filter(r => r.type==='income').reduce((s,r)=>s+r.amount,0);
     const exp = mRecords.filter(r => r.type==='expense').reduce((s,r)=>s+r.amount,0);
     const rate = totalMonthlyBudget ? Math.round(exp/totalMonthlyBudget*100) : 0;
+    
     document.getElementById('incomeValue').textContent = '¥'+inc.toFixed(2);
     document.getElementById('expenseValue').textContent = '¥'+exp.toFixed(2);
     document.getElementById('balanceValue').textContent = '¥'+(inc-exp).toFixed(2);
     document.getElementById('budgetRateValue').textContent = rate + '%';
     document.getElementById('budgetRateValue').style.color = rate > 100 ? 'var(--danger)' : 'var(--text)';
+}
+
+// 新增：渲染各支付方式汇总
+function renderAccountSummary() {
+    const mPrefix = currentDate.toISOString().slice(0, 7);
+    const mRecords = records.filter(r => r.date.startsWith(mPrefix));
+    const accounts = ["微信支付", "支付宝", "银行卡", "现金"];
+    const box = document.getElementById('accountSummaryBox');
+    box.innerHTML = '';
+
+    accounts.forEach(acc => {
+        const accRecords = mRecords.filter(r => (r.account || "微信支付") === acc);
+        const inc = accRecords.filter(r => r.type === 'income').reduce((s,r) => s + r.amount, 0);
+        const exp = accRecords.filter(r => r.type === 'expense').reduce((s,r) => s + r.amount, 0);
+        const net = inc - exp;
+        
+        const row = document.createElement('div');
+        row.className = 'acc-row';
+        row.innerHTML = `
+            <span class="acc-name">${acc}</span>
+            <span class="acc-amount" style="color: ${net >= 0 ? 'var(--success)' : 'var(--danger)'}">
+                ${net >= 0 ? '+' : ''}${net.toFixed(2)}
+            </span>
+        `;
+        box.appendChild(row);
+    });
 }
 
 function renderCalendar() {
@@ -274,7 +311,6 @@ function renderCalendar() {
     }
 }
 
-// 渲染流水记录：保留了支付方式标签渲染
 function renderRecords() {
     const c = document.getElementById('recordList');
     const mPrefix = currentDate.toISOString().slice(0, 7);
@@ -356,7 +392,6 @@ function renderFilterTags() {
     });
 }
 
-// 交互函数保持原样
 function updateTotalBudget(v) { totalMonthlyBudget = parseFloat(v) || 0; sync(true); }
 function updateBudget(cat, v) { budgets[cat] = parseFloat(v)||0; sync(true); }
 function editRecord(r) { 
