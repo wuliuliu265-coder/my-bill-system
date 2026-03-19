@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>个人云记账系统 - 支付汇总增强版</title>
+<title>个人云记账系统 - 布局优化版</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 /* 严格遵循原始视觉规范 */
@@ -90,15 +90,17 @@ body { margin:0; padding:0; font-family:"Segoe UI","PingFang SC",sans-serif; bac
 /* 支付方式小标签样式 */
 .acc-tag { background:var(--line); color:var(--muted); padding:2px 6px; border-radius:4px; font-size:11px; margin-left:4px; }
 
-/* 流水记录固定高度滚动 */
-#recordList {
-    max-height: 480px; 
-    overflow-y: auto;  
-    padding-right: 4px; 
+/* === 核心优化：固定高度滚动区域 === */
+#recordList, #budgetList {
+    max-height: 450px; /* 固定高度，约容纳 5-6 个项目 */
+    overflow-y: auto;  /* 开启垂直滚动 */
+    padding-right: 6px; 
 }
-#recordList::-webkit-scrollbar { width: 4px; }
-#recordList::-webkit-scrollbar-thumb { background: var(--line); border-radius: 10px; }
-#recordList::-webkit-scrollbar-track { background: transparent; }
+/* 自定义滚动条样式 */
+#recordList::-webkit-scrollbar, #budgetList::-webkit-scrollbar { width: 4px; }
+#recordList::-webkit-scrollbar-thumb, #budgetList::-webkit-scrollbar-thumb { background: var(--line); border-radius: 10px; }
+#recordList::-webkit-scrollbar-track, #budgetList::-webkit-scrollbar-track { background: transparent; }
+
 </style>
 </head>
 <body>
@@ -160,7 +162,7 @@ body { margin:0; padding:0; font-family:"Segoe UI","PingFang SC",sans-serif; bac
 
       <section class="panel">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-          <h3 style="margin:0;">流水记录 (可滚动)</h3>
+          <h3 style="margin:0;">流水记录 </h3>
           <button class="text-btn" onclick="exportToCSV()">导出数据(CSV)</button>
         </div>
         <div id="recordList"></div>
@@ -169,10 +171,9 @@ body { margin:0; padding:0; font-family:"Segoe UI","PingFang SC",sans-serif; bac
 
     <aside class="panel">
       <h3>账户汇总 (本月)</h3>
-      <div class="account-summary-card" id="accountSummaryBox">
-        </div>
+      <div class="account-summary-card" id="accountSummaryBox"></div>
 
-      <h3>分类预算</h3>
+      <h3>分类预算 </h3>
       <div class="total-budget-card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
           <span style="font-weight:800; color:var(--primary);">本月总预算</span>
@@ -182,6 +183,7 @@ body { margin:0; padding:0; font-family:"Segoe UI","PingFang SC",sans-serif; bac
       </div>
       
       <div id="budgetList"></div>
+      
       <div style="margin-top:10px; color:var(--primary); cursor:pointer; font-weight:700; padding:10px; text-align:center; border:2px dashed var(--primary-soft); border-radius:14px;" id="addCategoryBtn">+ 添加新分类</div>
     </aside>
   </div>
@@ -259,28 +261,20 @@ function renderSummary() {
     document.getElementById('budgetRateValue').style.color = rate > 100 ? 'var(--danger)' : 'var(--text)';
 }
 
-// 新增：渲染各支付方式汇总
 function renderAccountSummary() {
     const mPrefix = currentDate.toISOString().slice(0, 7);
     const mRecords = records.filter(r => r.date.startsWith(mPrefix));
     const accounts = ["微信支付", "支付宝", "银行卡", "现金"];
     const box = document.getElementById('accountSummaryBox');
     box.innerHTML = '';
-
     accounts.forEach(acc => {
         const accRecords = mRecords.filter(r => (r.account || "微信支付") === acc);
         const inc = accRecords.filter(r => r.type === 'income').reduce((s,r) => s + r.amount, 0);
         const exp = accRecords.filter(r => r.type === 'expense').reduce((s,r) => s + r.amount, 0);
         const net = inc - exp;
-        
         const row = document.createElement('div');
         row.className = 'acc-row';
-        row.innerHTML = `
-            <span class="acc-name">${acc}</span>
-            <span class="acc-amount" style="color: ${net >= 0 ? 'var(--success)' : 'var(--danger)'}">
-                ${net >= 0 ? '+' : ''}${net.toFixed(2)}
-            </span>
-        `;
+        row.innerHTML = `<span class="acc-name">${acc}</span><span class="acc-amount" style="color: ${net >= 0 ? 'var(--success)' : 'var(--danger)'}">${net >= 0 ? '+' : ''}${net.toFixed(2)}</span>`;
         box.appendChild(row);
     });
 }
@@ -322,17 +316,7 @@ function renderRecords() {
     l.forEach(r => {
         const i = document.createElement('div'); i.className = 'record';
         i.onclick = () => editRecord(r);
-        i.innerHTML = `
-            <div>
-                <span style="background:var(--primary-soft); color:var(--primary); padding:2px 6px; border-radius:4px; font-size:11px;">${r.category}</span>
-                <span class="acc-tag">${r.account || '微信支付'}</span>
-                <span style="margin-left:5px;">${r.note || ''}</span>
-                <div style="font-size:12px; color:var(--muted); margin-top:4px;">${r.date}</div>
-            </div>
-            <div style="text-align:right">
-                <div style="font-weight:800; color:${r.type==='income'?'var(--success)':'var(--danger)'}">${r.type==='income'?'+':'-'}¥${r.amount.toFixed(2)}</div>
-                <button style="border:none; background:none; cursor:pointer;" onclick="event.stopPropagation(); deleteRecord(${r.id})">🗑</button>
-            </div>`;
+        i.innerHTML = `<div><span style="background:var(--primary-soft); color:var(--primary); padding:2px 6px; border-radius:4px; font-size:11px;">${r.category}</span><span class="acc-tag">${r.account || '微信支付'}</span><span style="margin-left:5px;">${r.note || ''}</span><div style="font-size:12px; color:var(--muted); margin-top:4px;">${r.date}</div></div><div style="text-align:right"><div style="font-weight:800; color:${r.type==='income'?'var(--success)':'var(--danger)'}">${r.type==='income'?'+':'-'}¥${r.amount.toFixed(2)}</div><button style="border:none; background:none; cursor:pointer;" onclick="event.stopPropagation(); deleteRecord(${r.id})">🗑</button></div>`;
         c.appendChild(i);
     });
 }
@@ -411,15 +395,7 @@ function deleteCategory(cat) { if(confirm(`确定删除“${cat}”分类吗？`
 
 document.getElementById('saveBtn').onclick = () => {
     const a = parseFloat(document.getElementById('amountInput').value); if(!a) return alert('请输入金额');
-    const nr = { 
-        id: editingId||Date.now(), 
-        amount:a, 
-        type:document.getElementById('typeInput').value, 
-        category:selectedFormCategory, 
-        account:document.getElementById('accountInput').value,
-        date:document.getElementById('dateInput').value||todayStr, 
-        note:document.getElementById('noteInput').value 
-    };
+    const nr = { id: editingId||Date.now(), amount:a, type:document.getElementById('typeInput').value, category:selectedFormCategory, account:document.getElementById('accountInput').value, date:document.getElementById('dateInput').value||todayStr, note:document.getElementById('noteInput').value };
     if(editingId) { records = records.map(r => r.id === editingId ? nr : r); editingId = null; document.getElementById('formTitle').textContent="快速记账"; }
     else records.push(nr);
     document.getElementById('amountInput').value = ''; document.getElementById('noteInput').value = ''; sync(true);
